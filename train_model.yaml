@@ -27,6 +27,8 @@ implementation:
         from keras.models import load_model
         import glob
         import tarfile
+        import zipfile
+
         
         parser = argparse.ArgumentParser()
         parser.add_argument('--ff_model', type=str, required=True)
@@ -42,14 +44,24 @@ implementation:
         #     print(f)
         
         print(f"the ff_model path is {args.ff_model}")
-        tgz_path = args.ff_model
+        zip_path = args.ff_model
         
-        with tarfile.open(tgz_path, "r:gz") as tar:
-            print("Files in archive:")
-            for member in tar.getmembers():
-                print(member.name)
+        # with tarfile.open(tgz_path, "r:gz") as tar:
+        #     print("Files in archive:")
+        #     for member in tar.getmembers():
+        #         print(member.name)
 
         
+
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            print("Files in archive:")
+            zip_ref.printdir()  # optional
+            for name in zip_ref.namelist():
+                print(name)
+
+    # Optional: Extract all files
+    # zip_ref.extractall(path="extracted_files")
+
         
         args.ff_model += ".keras"
         model = load_model(args.ff_model)
