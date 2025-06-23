@@ -36,12 +36,12 @@ implementation:
 
         # Load model
         
-        output_files = glob.glob("/tmp/*")
-        print("Files in /tmp:")
-        for f in output_files:
-            print(f)
+        # output_files = glob.glob("/tmp/*")
+        # print("Files in /tmp:")
+        # for f in output_files:
+        #     print(f)
         
-
+        print(f"the ff_model path is {args.ff_model}")
         tgz_path = args.ff_model
         
         with tarfile.open(tgz_path, "r:gz") as tar:
@@ -50,10 +50,10 @@ implementation:
                 print(member.name)
 
         
-        print(f"the ff_model path is {args.ff_model}")
+        
         args.ff_model += ".keras"
         model = load_model(args.ff_model)
-        Load dataset
+        # Load dataset
         
         train_data = tf.data.experimental.load(args.train_dataset)
 
