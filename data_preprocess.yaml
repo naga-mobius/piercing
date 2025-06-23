@@ -1,0 +1,74 @@
+name: Preprocess Data
+description: Normalizes MNIST data and creates TensorFlow datasets for training and testing.
+inputs:
+  - {name: x_train, type: Dataset}
+  - {name: y_train, type: Dataset}
+  - {name: x_test, type: Dataset}
+  - {name: y_test, type: Dataset}
+outputs:
+  - {name: train_dataset, type: Dataset}
+  - {name: test_dataset, type: Dataset}
+implementation:
+  container:
+    image: python:3.9
+    command:
+      - sh
+      - -c
+      - |
+        PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet tensorflow || \
+        PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet tensorflow --user
+        exec "$0" "$@"
+      - python3
+      - -u
+      - -c
+      - |
+        import argparse
+        import pickle
+        import os
+        import tensorflow as tf
+
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--x_train', type=str, required=True)
+        parser.add_argument('--y_train', type=str, required=True)
+        parser.add_argument('--x_test', type=str, required=True)
+        parser.add_argument('--y_test', type=str, required=True)
+        parser.add_argument('--train_dataset', type=str, required=True)
+        parser.add_argument('--test_dataset', type=str, required=True)
+        args = parser.parse_args()
+
+        # Load data
+        with open(args.x_train, "rb") as f: x_train = pickle.load(f)
+        with open(args.y_train, "rb") as f: y_train = pickle.load(f)
+        with open(args.x_test, "rb") as f: x_test = pickle.load(f)
+        with open(args.y_test, "rb") as f: y_test = pickle.load(f)
+
+        # Normalize and convert
+        x_train = x_train.astype(float) / 255
+        x_test = x_test.astype(float) / 255
+        y_train = y_train.astype(int)
+        y_test = y_test.astype(int)
+
+        train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train)).batch(len(x_train))
+        test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test)).batch(len(x_test))
+
+        # Ensure output dirs
+        os.makedirs(os.path.dirname(args.train_dataset), exist_ok=True)
+        os.makedirs(os.path.dirname(args.test_dataset), exist_ok=True)
+
+        # Save as pickled TF datasets
+        tf.data.experimental.save(train_dataset, args.train_dataset)
+        tf.data.experimental.save(test_dataset, args.test_dataset)
+
+    args:
+      - --x_train
+      - {inputPath: x_train}
+      - --y_train
+      - {inputPath: y_train}
+      - --x_test
+      - {inputPath: x_test}
+      - --y_test
+      - {inputPath: y_test}
+      - --train_dataset
+      - {outputPath: train_dataset}
+      - --test_dataset
+      - {outputPath: test_dataset}

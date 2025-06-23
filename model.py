@@ -1,0 +1,108 @@
+import tensorflow as tf
+import keras
+from keras import ops
+from tensorflow.compiler.tf2xla.python import xla
+
+class FFDense(keras.layers.Layer):
+    def __init__(self, units, init_optimizer, loss_metric, num_epochs=50,
+                 use_bias=True, kernel_initializer="glorot_uniform",
+                 bias_initializer="zeros", kernel_regularizer=None,
+                 bias_regularizer=None, **kwargs):
+        super().__init__(**kwargs)
+        self.dense = keras.layers.Dense(units, use_bias, kernel_initializer,
+                                        bias_initializer, kernel_regularizer, bias_regularizer)
+        self.relu = keras.layers.ReLU()
+        self.optimizer = init_optimizer()
+        self.loss_metric = loss_metric
+        self.threshold = 1.5
+        self.num_epochs = num_epochs
+
+    def call(self, x):
+        x_norm = ops.norm(x, ord=2, axis=1, keepdims=True) + 1e-4
+        x_dir = x / x_norm
+        res = self.dense(x_dir)
+        return self.relu(res)
+
+    def forward_forward(self, x_pos, x_neg):
+        for _ in range(self.num_epochs):
+            with tf.GradientTape() as tape:
+                g_pos = ops.mean(ops.power(self.call(x_pos), 2), 1)
+                g_neg = ops.mean(ops.power(self.call(x_neg), 2), 1)
+                loss = ops.log(1 + ops.exp(ops.concatenate([-g_pos + self.threshold,
+                                                           g_neg - self.threshold], 0)))
+                mean_loss = ops.cast(ops.mean(loss), dtype="float32")
+                self.loss_metric.update_state([mean_loss])
+            grads = tape.gradient(mean_loss, self.dense.trainable_weights)
+            self.optimizer.apply_gradients(zip(grads, self.dense.trainable_weights))
+        return ops.stop_gradient(self.call(x_pos)), ops.stop_gradient(self.call(x_neg)), self.loss_metric.result()
+
+class FFNetwork(keras.Model):
+    def __init__(self, dims, init_layer_optimizer=lambda: keras.optimizers.Adam(0.03), **kwargs):
+        super().__init__(**kwargs)
+        self.init_layer_optimizer = init_layer_optimizer
+        self.loss_var = keras.Variable(0.0, trainable=False, dtype="float32")
+        self.loss_count = keras.Variable(0.0, trainable=False, dtype="float32")
+        self.layer_list = [keras.Input(shape=(dims[0],))]
+        self.metrics_built = False
+        for d in range(len(dims) - 1):
+            self.layer_list.append(
+                FFDense(dims[d + 1],
+                        init_optimizer=self.init_layer_optimizer,
+                        loss_metric=keras.metrics.Mean())
+            )
+
+    @tf.function(reduce_retracing=True)
+    def overlay_y_on_x(self, data):
+        X_sample, y_sample = data
+        max_sample = ops.cast(ops.amax(X_sample, axis=0, keepdims=True), dtype="float64")
+        X_zeros = ops.zeros([10], dtype="float64")
+        X_update = xla.dynamic_update_slice(X_zeros, max_sample, [y_sample])
+        X_sample = xla.dynamic_update_slice(X_sample, X_update, [0])
+        return X_sample, y_sample
+
+    @tf.function(reduce_retracing=True)
+    def predict_one_sample(self, x):
+        goodness_per_label = []
+        x = ops.reshape(x, [ops.shape(x)[0] * ops.shape(x)[1]])
+        for label in range(10):
+            h, _ = self.overlay_y_on_x((x, label))
+            h = ops.reshape(h, [-1, ops.shape(h)[0]])
+            goodness = []
+            for layer in self.layer_list[1:]:
+                h = layer(h)
+                goodness.append(ops.mean(ops.power(h, 2), 1))
+            goodness_per_label.append(ops.expand_dims(ops.sum(goodness, keepdims=True), 1))
+        return ops.cast(ops.argmax(tf.concat(goodness_per_label, 1), 1), dtype="float64")
+
+    def update_pierce_params(self, pierce_params):
+        self.optimiser = pierce_params.get("optimiser",
+                                           keras.optimizers.Adam(learning_rate=0.03))
+        self.threshold = pierce_params.get("threshold", 1.5)
+        for layer in self.layer_list:
+            if hasattr(layer, "optimizer"):
+                layer.optimizer = self.optimiser
+
+    def predict(self, data):
+        return ops.vectorized_map(self.predict_one_sample, data).numpy().astype(int)
+
+    @tf.function(jit_compile=False)
+    def train_step(self, data):
+        x, y = data
+        if not self.metrics_built:
+            for metric in self.metrics:
+                if hasattr(metric, "build"):
+                    metric.build(y, y)
+            self.metrics_built = True
+        x = ops.reshape(x, [-1, ops.shape(x)[1] * ops.shape(x)[2]])
+        x_pos, y = ops.vectorized_map(self.overlay_y_on_x, (x, y))
+        random_y = tf.random.shuffle(y)
+        x_neg, _ = tf.map_fn(self.overlay_y_on_x, (x, random_y))
+        h_pos, h_neg = x_pos, x_neg
+        for layer in self.layers:
+            if isinstance(layer, FFDense):
+                h_pos, h_neg, loss = layer.forward_forward(h_pos, h_neg)
+                self.loss_var.assign_add(loss)
+                self.loss_count.assign_add(1.0)
+            else:
+                h_pos = layer(h_pos)
+        return {"FinalLoss": self.loss_var / self.loss_count}

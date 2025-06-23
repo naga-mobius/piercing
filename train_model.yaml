@@ -1,0 +1,76 @@
+name: Train FFN Model v7
+description: Compiles and trains the FFN model using the training dataset and saves the trained model.
+inputs:
+  - {name: ff_model, type: Model}
+  - {name: train_dataset, type: Dataset}
+outputs:
+  - {name: trained_model, type: Model}
+implementation:
+  container:
+    image: python:3.9
+    command:
+      - sh
+      - -c
+      - |
+        PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet tensorflow keras || \
+        PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet tensorflow keras --user
+        exec "$0" "$@"
+      - python3
+      - -u
+      - -c
+      - |
+        import argparse
+        import pickle
+        import os
+        import tensorflow as tf
+        from keras.optimizers import Adam
+        from keras.models import load_model
+        import glob
+
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--ff_model', type=str, required=True)
+        parser.add_argument('--train_dataset', type=str, required=True)
+        parser.add_argument('--trained_model', type=str, required=True)
+        args = parser.parse_args()
+
+        # Load model
+        
+        output_files = glob.glob("/tmp/outputs/*")
+        print("Files in /tmp/outputs:")
+        for f in output_files:
+            print(f)
+
+        print(f"the ff_model path is {args.ff_model})
+        args.ff_model += ".keras"
+        model = load_model(args.ff_model)
+        # Load dataset
+        
+        train_data = tf.data.experimental.load(args.train_dataset)
+
+        # Compile and train
+        model.compile(
+            optimizer=Adam(learning_rate=0.03),
+            loss="mse",
+            jit_compile=False,
+            metrics=[]
+        )
+        model.fit(train_data, epochs=2)
+
+        # # Save the trained model
+        # os.makedirs(os.path.dirname(args.trained_model), exist_ok=True)
+        # with open(args.trained_model, "wb") as f:
+        #     pickle.dump(model, f)
+
+        os.makedirs(os.path.dirname(args.trained_model), exist_ok=True)
+        model.save(args.trained_model + ".keras")   # args.ff_model should be a directory path
+        os.rename(args.trained_model + ".keras", args.ff_model)
+    args:
+      - --ff_model
+      # - /tmp/outputs/ff_model/data.keras
+      - {inputPath: ff_model}
+      - --train_dataset
+
+      - {inputPath: train_dataset}
+      - --trained_model
+      - {outputPath: trained_model}
+      # - /tmp/outputs/trained_model/data.keras
