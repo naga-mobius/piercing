@@ -59,8 +59,6 @@ implementation:
             for name in zip_ref.namelist():
                 print(name)
 
-    # Optional: Extract all files
-    # zip_ref.extractall(path="extracted_files")
 
         
         args.ff_model += ".keras"
