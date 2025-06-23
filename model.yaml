@@ -151,7 +151,6 @@ implementation:
         os.rename(args.ff_model + ".keras", args.ff_model)
 
     args:
-    #   - --ff_model
-    #   - {outputPath: ff_model}
-        - --ff_model
-        - /tmp/outputs/ff_model/data.keras
+      - --ff_model
+      - {outputPath: ff_model}
+        
