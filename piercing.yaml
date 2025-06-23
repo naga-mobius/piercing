@@ -265,8 +265,8 @@ implementation:
         # Load model
         # with open(args.trained_model, "rb") as f:
         #     model = pickle.load(f)
-        args.trained_model += ".keras"
-        model = load_model(args.trained_model)
+        # args.trained_model += ".keras"
+        # model = load_model(args.trained_model)
 
         # Load data
         x_splits = np.load(args.x_pierce_splits, allow_pickle=True)
