@@ -1,4 +1,4 @@
-name: Pierce Model v5
+name: Pierce Model
 description: Performs piercing (fine-tuning) on the FFN model using symbolic patching with piercing parameters.
 inputs:
   - {name: trained_model, type: Model}
