@@ -50,10 +50,10 @@ implementation:
                 print(member.name)
 
         
-        # print(f"the ff_model path is {args.ff_model}")
-        # args.ff_model += ".keras"
-        # model = load_model(args.ff_model)
-        # Load dataset
+        print(f"the ff_model path is {args.ff_model}")
+        args.ff_model += ".keras"
+        model = load_model(args.ff_model)
+        Load dataset
         
         train_data = tf.data.experimental.load(args.train_dataset)
 
