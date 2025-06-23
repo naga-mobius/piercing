@@ -66,6 +66,7 @@ implementation:
         )
         model.fit(train_data, epochs=2)
 
+
         # # Save the trained model
         # os.makedirs(os.path.dirname(args.trained_model), exist_ok=True)
         # with open(args.trained_model, "wb") as f:
