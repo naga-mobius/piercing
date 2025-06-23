@@ -177,7 +177,7 @@ implementation:
         # for f in output_files:
         #     print(f)
         
-        print(f"the trained model path is {args.trained_model}")
+        
         # tgz_path = args.ff_model
         
         # zip_path = args.ff_model 
@@ -195,7 +195,7 @@ implementation:
         parser.add_argument('--pierced_model', type=str, required=True)
         args = parser.parse_args()
 
-        
+        print(f"the trained model path is {args.trained_model}")
         zip_path = args.trained_model
         extract_path = "/tmp/trained_model_extracted"
         
