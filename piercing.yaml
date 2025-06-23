@@ -177,7 +177,7 @@ implementation:
         # for f in output_files:
         #     print(f)
         
-        print(f"the ff_model path is {args.ff_model}")
+        print(f"the trained model path is {args.trained_model}")
         # tgz_path = args.ff_model
         
         # zip_path = args.ff_model 
@@ -188,10 +188,16 @@ implementation:
         #         print(name)
 
 
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--trained_model', type=str, required=True)
+        parser.add_argument('--x_pierce_splits', type=str, required=True)
+        parser.add_argument('--y_pierce_splits', type=str, required=True)
+        parser.add_argument('--pierced_model', type=str, required=True)
+        args = parser.parse_args()
+
         
-        
-        zip_path = args.ff_model
-        extract_path = "/tmp/ff_model_extracted"
+        zip_path = args.trained_model
+        extract_path = "/tmp/trained_model_extracted"
         
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(extract_path)
@@ -203,7 +209,7 @@ implementation:
         model = FFNetwork([784, 50, 50])
         model.build(input_shape=(None, 784))
         model.load_weights(os.path.join(extract_path, "model.weights.h5"))
-
+        
         # -----------------------
         # Helper functions
         # -----------------------
@@ -236,7 +242,8 @@ implementation:
             model.fit(train_dataset, epochs=epochs)
             prev_accuracy = 0
             accuracy = get_accuracy(model, x_test, y_test)
-
+            print(f"the expected accuracy{required_accuracy}")
+            print(f"The obtained accuracy {accuracy}")
             while accuracy < required_accuracy and accuracy > prev_accuracy:
                 prev_accuracy = accuracy
                 params = pierce_params["optimiser_params"]
@@ -245,20 +252,16 @@ implementation:
                 params["beta_2"] = np.random.uniform(0.99, 0.9999)
                 pierce_params["optimiser"] = pierce_params["optimiser_class"](**params)
                 model.update_pierce_params(pierce_params)
-
+                
                 model.fit(train_dataset, epochs=epochs)
                 accuracy = get_accuracy(model, x_test, y_test)
+                print(f"the expected accuracy{required_accuracy}")
+                print(f"The obtained accuracy {accuracy}")
 
         # -----------------------
         # Main script
         # -----------------------
-        parser = argparse.ArgumentParser()
-        parser.add_argument('--trained_model', type=str, required=True)
-        parser.add_argument('--x_pierce_splits', type=str, required=True)
-        parser.add_argument('--y_pierce_splits', type=str, required=True)
-        parser.add_argument('--pierced_model', type=str, required=True)
-        args = parser.parse_args()
-
+        
         # Load model
         # with open(args.trained_model, "rb") as f:
         #     model = pickle.load(f)
@@ -282,7 +285,9 @@ implementation:
         }
 
         # Perform piercing on each split
+        new_data_id = 1
         for new_x, new_y in zip(x_splits, y_splits):
+            print(f"the new_data {new_data_id} arrived for piercing")
             pierce_model(model, new_x, new_y, pierce_params)
 
         # Save final pierced model
