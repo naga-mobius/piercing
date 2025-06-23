@@ -189,7 +189,8 @@ implementation:
         with open(os.path.join(extract_path, "config.json"), "r") as f:
             model_json = f.read()
         
-        model = model_from_json(model_json)
+        # model = model_from_json(model_json)
+        model = FFNetwork([784, 50, 50])
         model.load_weights(os.path.join(extract_path, "model.weights.h5"))
 
         # with tarfile.open(tgz_path, "r:gz") as tar:
