@@ -223,7 +223,7 @@ implementation:
 
         os.makedirs(os.path.dirname(args.trained_model), exist_ok=True)
         model.save(args.trained_model + ".keras")   # args.ff_model should be a directory path
-        os.rename(args.trained_model + ".keras", args.ff_model)
+        os.rename(args.trained_model + ".keras", args.trained_model)
     args:
       - --ff_model
       # - /tmp/outputs/ff_model/data.keras
