@@ -276,6 +276,8 @@ implementation:
         for new_x, new_y in zip(x_splits, y_splits):
             print(f"the new_data {new_data_id} arrived for piercing")
             pierce_model(model, new_x, new_y, pierce_params)
+            break
+            
 
         # Save final pierced model
         os.makedirs(os.path.dirname(args.pierced_model), exist_ok=True)
