@@ -1,4 +1,4 @@
-name: Load and Split MNIST Dataset v2
+name: PI_datasets
 description: Loads MNIST dataset, splits it into train/test and additional pierce splits.
 outputs:
   - {name: x_train, type: Dataset}
