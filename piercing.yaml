@@ -20,39 +20,29 @@ implementation:
       - -u
       - -c
       - |
-        import argparse
-        import pickle
         import os
+        import glob
+        import json
+        import pickle
+        import argparse
+        import zipfile
+        import tarfile
+        
         import numpy as np
         import tensorflow as tf
+        from tensorflow.compiler.tf2xla.python import xla
         from sklearn.metrics import accuracy_score
         from sklearn.model_selection import train_test_split
-        from keras.optimizers import Adam
-        from keras.models import load_model
-        import argparse
-        import pickle
-        import os
-        import tensorflow as tf
-        from keras.optimizers import Adam
-        from keras.models import load_model
-        import glob
-        import tarfile
-        import zipfile
-        import json
-        from keras.models import model_from_json
-        import argparse
-        import pickle
-        import os
-        import tensorflow as tf
+        
         import keras
         from keras import ops
-        from tensorflow.compiler.tf2xla.python import xla
+        from keras.optimizers import Adam
+        from keras.models import load_model, model_from_json
+        
         tf.config.run_functions_eagerly(True)
 
-        # parser = argparse.ArgumentParser()
-        # parser.add_argument('--ff_model', type=str, required=True)
-        # args = parser.parse_args()
 
+        
         class FFDense(keras.layers.Layer):
             def __init__(self, units, init_optimizer, loss_metric, num_epochs=50,
                          use_bias=True, kernel_initializer="glorot_uniform",
@@ -171,59 +161,6 @@ implementation:
 
 
         
-        # parser = argparse.ArgumentParser()
-        # parser.add_argument('--ff_model', type=str, required=True)
-        # parser.add_argument('--train_dataset', type=str, required=True)
-        # parser.add_argument('--trained_model', type=str, required=True)
-        # args = parser.parse_args()
-
-        # Load model
-        
-        # output_files = glob.glob("/tmp/*")
-        # print("Files in /tmp:")
-        # for f in output_files:
-        #     print(f)
-        
-        
-        # tgz_path = args.ff_model
-        
-        # zip_path = args.ff_model 
-        # with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        #     print("Files in archive:")
-        #     zip_ref.printdir() 
-        #     for name in zip_ref.namelist():
-        #         print(name)
-
-
-        parser = argparse.ArgumentParser()
-        parser.add_argument('--trained_model', type=str, required=True)
-        parser.add_argument('--x_pierce_splits', type=str, required=True)
-        parser.add_argument('--y_pierce_splits', type=str, required=True)
-        parser.add_argument('--pierced_model', type=str, required=True)
-        args = parser.parse_args()
-
-        print(f"the trained model path is {args.trained_model}")
-        zip_path = args.trained_model
-        extract_path = "/tmp/trained_model_extracted"
-        
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(extract_path)
-        
-        with open(os.path.join(extract_path, "config.json"), "r") as f:
-            model_json = f.read()
-        
-        # model = model_from_json(model_json)
-        model = FFNetwork([784, 50, 50])
-        model.build(input_shape=(None, 784))
-        model.load_weights(os.path.join(extract_path, "model.weights.h5"))
-
-        
-        model.compile(
-            optimizer=keras.optimizers.Adam(learning_rate=0.03),
-            loss="mse",
-            jit_compile=False,
-            metrics=[],
-        )
         # -----------------------
         # Helper functions
         # -----------------------
@@ -276,11 +213,36 @@ implementation:
         # Main script
         # -----------------------
         
-        # Load model
-        # with open(args.trained_model, "rb") as f:
-        #     model = pickle.load(f)
-        # args.trained_model += ".keras"
-        # model = load_model(args.trained_model)
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--trained_model', type=str, required=True)
+        parser.add_argument('--x_pierce_splits', type=str, required=True)
+        parser.add_argument('--y_pierce_splits', type=str, required=True)
+        parser.add_argument('--pierced_model', type=str, required=True)
+        args = parser.parse_args()
+
+        print(f"the trained model path is {args.trained_model}")
+        zip_path = args.trained_model
+        extract_path = "/tmp/trained_model_extracted"
+        
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(extract_path)
+        
+        with open(os.path.join(extract_path, "config.json"), "r") as f:
+            model_json = f.read()
+        
+        # model = model_from_json(model_json)
+        model = FFNetwork([784, 50, 50])
+        model.build(input_shape=(None, 784))
+        model.load_weights(os.path.join(extract_path, "model.weights.h5"))
+
+        
+        model.compile(
+            optimizer=keras.optimizers.Adam(learning_rate=0.03),
+            loss="mse",
+            jit_compile=False,
+            metrics=[],
+        )
+        
 
         # Load data
         x_splits = np.load(args.x_pierce_splits, allow_pickle=True)
@@ -305,9 +267,6 @@ implementation:
             pierce_model(model, new_x, new_y, pierce_params)
 
         # Save final pierced model
-        # os.makedirs(os.path.dirname(args.pierced_model), exist_ok=True)
-        # with open(args.pierced_model, "wb") as f:
-        #     pickle.dump(model, f)
         os.makedirs(os.path.dirname(args.pierced_model), exist_ok=True)
         model.save(args.pierced_model + ".keras")   # args.pierced_model should be a directory path
         os.rename(args.pierced_model + ".keras", args.pierced_model)
