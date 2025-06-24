@@ -1,0 +1,72 @@
+name: RLAF
+description: RLAF for piercing 
+
+inputs:
+  - {name: accuracy, type: float}
+  - {name: prev_accuracy, type: float}
+
+outputs:
+  - {name: pierce_params, type: Dict}
+
+implementation:
+  container:
+    image: python:3.9
+    command:
+      - sh
+      - -c
+      - |
+        PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet numpy  || \
+        PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet numpy --user
+        exec "$0" "$@"
+      - python3
+      - -u
+      - -c
+      - |
+        import argparse
+        import os
+        import pickle
+        import numpy as np
+        
+
+
+        def RLAF(accuracy, prev_accuracy):
+            pierce_params = {
+                "epochs": np.random.randint(2, 11),
+                "expected_accuracy": 0.9,
+                "optimiser_class": Adam,
+                "optimiser_params": {
+                    "learning_rate": np.random.uniform(0.001, 0.01),
+                    "beta_1": np.random.uniform(0.9, 0.99),
+                    "beta_2": np.random.uniform(0.99, 0.9999)
+                },
+                "pierce_model" : False
+            }
+            print(f"The expected accuracy is {pierce_params['expected_accuracy']}")
+            print(f"The current accuracy is {accuracy}")
+            if accuracy < pierce_params['expected_accuracy'] :
+                print("The required accuracy haven't been achieved. Continuing to pierce")
+                
+            if accuracy < prev_accuracy: 
+                print("The accuracy isn't improving even after piercing. It seems the maximum achievable accuracy have reached for the model with this data. So piercing is stopped")
+        
+            if accuracy < pierce_params['expected_accuracy'] and accuracy > prev_accuracy :
+                pierce_params["pierce_model"] = True 
+        
+            return pierce_params
+
+
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--accuracy', type=float, required=True)
+        parser.add_argument('--prev_accuracy', type=float, required=True)
+        parser.add_argument('--pierce_params', type=Dict, required=True)
+        args = parser.parse_args()
+
+        with open(args.accuracy, "rb") as f: accuracy = pickle.load(f)
+        with open(args.prev_accuracy, "rb") as f: prev_accuracy = pickle.load(f)
+
+        # Save using pickle
+        with open(args.pierce_params, "wb") as f: pickle.dump(pierce_params, f)
+    args:
+      - --pierce_params
+      - {outputPath: pierce_params}
+  
