@@ -1,4 +1,4 @@
-name: Build Model_v5
+name: Build Model
 description: Defines the FFNetwork model with forward-forward learning layers and saves it.
 # outputs:
 #   - {name: ff_model, type: Model}
