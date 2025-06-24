@@ -203,7 +203,6 @@ implementation:
                 params["beta_2"] = np.random.uniform(0.99, 0.9999)
                 pierce_params["optimiser"] = pierce_params["optimiser_class"](**params)
                 model.update_pierce_params(pierce_params)
-                
                 model.fit(train_dataset, epochs=epochs)
                 accuracy = get_accuracy(model, x_test, y_test)
                 print(f"the expected accuracy{required_accuracy}")
