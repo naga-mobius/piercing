@@ -210,7 +210,7 @@ implementation:
             while accuracy < required_accuracy and accuracy > prev_accuracy:
                 prev_accuracy = accuracy
                 params = pierce_params["optimiser_params"]
-                params["learning_rate"] = np.random.uniform(0.001, 0.01)
+                params["learning_rate"] = np.random.uniform(0.005, 0.05)
                 params["beta_1"] = np.random.uniform(0.9, 0.99)
                 params["beta_2"] = np.random.uniform(0.99, 0.9999)
                 pierce_params["optimiser"] = pierce_params["optimiser_class"](**params)
