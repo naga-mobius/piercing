@@ -1,4 +1,4 @@
-name: Train FFN Model
+name: Forward_forward_training
 description: Compiles and trains the FFN model using the training dataset and saves the trained model.
 inputs:
   - {name: ff_model, type: Model}
