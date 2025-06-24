@@ -131,15 +131,21 @@ implementation:
                     goodness_per_label.append(ops.expand_dims(ops.sum(goodness, keepdims=True), 1))
                 return ops.cast(ops.argmax(tf.concat(goodness_per_label, 1), 1), dtype="float64")
 
+            
+
+            # def predict(self, data):
+            #     return ops.vectorized_map(self.predict_one_sample, data).numpy().astype(int)
+            def predict(self, data):
+                # Avoid .numpy() inside graph context
+                predictions = tf.vectorized_map(self.predict_one_sample, data)
+                return tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
+                
             def update_pierce_params(self, pierce_params):
                 self.optimiser = pierce_params.get("optimiser", keras.optimizers.Adam(learning_rate=0.03))
                 self.threshold = pierce_params.get("threshold", 1.5)
                 for layer in self.layer_list:
                     if hasattr(layer, "optimizer"):
                         layer.optimizer = self.optimiser
-
-            def predict(self, data):
-                return ops.vectorized_map(self.predict_one_sample, data).numpy().astype(int)
 
             @tf.function(jit_compile=False)
             def train_step(self, data):
