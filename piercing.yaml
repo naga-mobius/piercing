@@ -196,6 +196,8 @@ implementation:
 
             model.fit(train_dataset, epochs=epochs)
             prev_accuracy = 0
+            x_test = x_test.astype(float) / 255
+            y_test = y_test.astype(int)
             accuracy = get_accuracy(model, x_test, y_test)
             print(f"the expected accuracy{required_accuracy}")
             print(f"The obtained accuracy {accuracy}")
