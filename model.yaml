@@ -142,7 +142,7 @@ implementation:
                 return {"FinalLoss": self.loss_var / self.loss_count}
 
         # Instantiate model
-        model = FFNetwork([784, 50, 50])
+        model = FFNetwork([784, 500, 500])
 
         os.makedirs(os.path.dirname(args.ff_model), exist_ok=True)
         # with open(args.ff_model, "wb") as f:
