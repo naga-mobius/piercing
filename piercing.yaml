@@ -179,7 +179,9 @@ implementation:
 
         def get_accuracy(model, x_test, y_test):
             preds = model.predict(x_test)
-            preds = preds.reshape((preds.shape[0], preds.shape[1]))
+            # preds = preds.reshape((preds.shape[0], preds.shape[1]))
+            preds = tf.reshape(preds, [tf.shape(preds)[0], tf.shape(preds)[1]])
+
             results = accuracy_score(preds, y_test)
             print(f"Test Accuracy score : {results * 100}%")
             return results
