@@ -1,4 +1,4 @@
-name: Preprocess Data
+name: Data_cleaning
 description: Normalizes MNIST data and creates TensorFlow datasets for training and testing.
 inputs:
   - {name: x_train, type: Dataset}
