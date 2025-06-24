@@ -289,7 +289,7 @@ implementation:
         # Define piercing parameters
         pierce_params = {
             "epochs": 5,
-            "accuracy": 0.9,
+            "accuracy": 0.5,
             "optimiser_class": Adam,
             "optimiser_params": {
                 "learning_rate": 0.01,
