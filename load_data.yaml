@@ -38,10 +38,10 @@ implementation:
         args = parser.parse_args()
 
         (x_train_all, y_train_all), (x_test, y_test) = mnist.load_data()
-        x_train_all = x_train_all[:1000]
-        y_train_all = y_train_all[:1000]
-        x_test = x_test[:300]
-        y_test = y_test[:300]
+        x_train_all = x_train_all
+        y_train_all = y_train_all
+        x_test = x_test
+        y_test = y_test
         x_train, x_train_stream, y_train, y_train_stream = train_test_split(
             x_train_all, y_train_all, test_size=0.3, random_state=42, stratify=y_train_all
         )
