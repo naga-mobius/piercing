@@ -29,18 +29,30 @@ implementation:
         from sklearn.model_selection import train_test_split
         from keras.optimizers import Adam
         from keras.models import load_model
+        import argparse
+        import pickle
+        import os
+        import tensorflow as tf
+        from keras.optimizers import Adam
+        from keras.models import load_model
         import glob
         import tarfile
         import zipfile
         import json
         from keras.models import model_from_json
+        import argparse
+        import pickle
+        import os
+        import tensorflow as tf
         import keras
         from keras import ops
         from tensorflow.compiler.tf2xla.python import xla
-        
-        # Disable eager execution issues
         tf.config.run_functions_eagerly(True)
-        
+
+        # parser = argparse.ArgumentParser()
+        # parser.add_argument('--ff_model', type=str, required=True)
+        # args = parser.parse_args()
+
         class FFDense(keras.layers.Layer):
             def __init__(self, units, init_optimizer, loss_metric, num_epochs=50,
                          use_bias=True, kernel_initializer="glorot_uniform",
@@ -49,7 +61,7 @@ implementation:
                 super().__init__(**kwargs)
                 self.dense = keras.layers.Dense(
                                                 units,
-                                                activation=None,
+                                                activation=None,  # or explicitly specify if needed
                                                 use_bias=use_bias,
                                                 kernel_initializer=kernel_initializer,
                                                 bias_initializer=bias_initializer,
@@ -61,13 +73,13 @@ implementation:
                 self.loss_metric = loss_metric
                 self.threshold = 1.5
                 self.num_epochs = num_epochs
-        
+
             def call(self, x):
                 x_norm = ops.norm(x, ord=2, axis=1, keepdims=True) + 1e-4
                 x_dir = x / x_norm
                 res = self.dense(x_dir)
                 return self.relu(res)
-        
+
             def forward_forward(self, x_pos, x_neg):
                 for _ in range(self.num_epochs):
                     with tf.GradientTape() as tape:
@@ -80,7 +92,7 @@ implementation:
                     grads = tape.gradient(mean_loss, self.dense.trainable_weights)
                     self.optimizer.apply_gradients(zip(grads, self.dense.trainable_weights))
                 return ops.stop_gradient(self.call(x_pos)), ops.stop_gradient(self.call(x_neg)), self.loss_metric.result()
-        
+
         class FFNetwork(keras.Model):
             def __init__(self, dims, init_layer_optimizer=lambda: keras.optimizers.Adam(0.03), **kwargs):
                 super().__init__(**kwargs)
@@ -95,7 +107,7 @@ implementation:
                                 init_optimizer=self.init_layer_optimizer,
                                 loss_metric=keras.metrics.Mean())
                     )
-        
+
             @tf.function(reduce_retracing=True)
             def overlay_y_on_x(self, data):
                 X_sample, y_sample = data
@@ -104,7 +116,7 @@ implementation:
                 X_update = xla.dynamic_update_slice(X_zeros, max_sample, [y_sample])
                 X_sample = xla.dynamic_update_slice(X_sample, X_update, [0])
                 return X_sample, y_sample
-        
+
             @tf.function(reduce_retracing=True)
             def predict_one_sample(self, x):
                 goodness_per_label = []
@@ -118,27 +130,23 @@ implementation:
                         goodness.append(ops.mean(ops.power(h, 2), 1))
                     goodness_per_label.append(ops.expand_dims(ops.sum(goodness, keepdims=True), 1))
                 return ops.cast(ops.argmax(tf.concat(goodness_per_label, 1), 1), dtype="float64")
-        
+
+            
+
+            # def predict(self, data):
+            #     return ops.vectorized_map(self.predict_one_sample, data).numpy().astype(int)
             def predict(self, data):
+                # Avoid .numpy() inside graph context
                 predictions = tf.vectorized_map(self.predict_one_sample, data)
                 return tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
                 
             def update_pierce_params(self, pierce_params):
-                """Updated method to properly handle optimizer changes"""
                 self.optimiser = pierce_params.get("optimiser", keras.optimizers.Adam(learning_rate=0.03))
                 self.threshold = pierce_params.get("threshold", 1.5)
-                
-                # Create new optimizers for each layer to avoid variable conflicts
                 for layer in self.layer_list:
                     if hasattr(layer, "optimizer"):
-                        # Create a fresh optimizer instance for each layer
-                        if hasattr(self.optimiser, 'get_config'):
-                            config = self.optimiser.get_config()
-                            layer.optimizer = type(self.optimiser).from_config(config)
-                        else:
-                            # Fallback: create new Adam optimizer
-                            layer.optimizer = keras.optimizers.Adam(learning_rate=0.03)
-        
+                        layer.optimizer = self.optimiser
+
             @tf.function(jit_compile=False)
             def train_step(self, data):
                 x, y = data
@@ -160,8 +168,65 @@ implementation:
                     else:
                         h_pos = layer(h_pos)
                 return {"FinalLoss": self.loss_var / self.loss_count}
+
+
         
+        # parser = argparse.ArgumentParser()
+        # parser.add_argument('--ff_model', type=str, required=True)
+        # parser.add_argument('--train_dataset', type=str, required=True)
+        # parser.add_argument('--trained_model', type=str, required=True)
+        # args = parser.parse_args()
+
+        # Load model
+        
+        # output_files = glob.glob("/tmp/*")
+        # print("Files in /tmp:")
+        # for f in output_files:
+        #     print(f)
+        
+        
+        # tgz_path = args.ff_model
+        
+        # zip_path = args.ff_model 
+        # with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        #     print("Files in archive:")
+        #     zip_ref.printdir() 
+        #     for name in zip_ref.namelist():
+        #         print(name)
+
+
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--trained_model', type=str, required=True)
+        parser.add_argument('--x_pierce_splits', type=str, required=True)
+        parser.add_argument('--y_pierce_splits', type=str, required=True)
+        parser.add_argument('--pierced_model', type=str, required=True)
+        args = parser.parse_args()
+
+        print(f"the trained model path is {args.trained_model}")
+        zip_path = args.trained_model
+        extract_path = "/tmp/trained_model_extracted"
+        
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(extract_path)
+        
+        with open(os.path.join(extract_path, "config.json"), "r") as f:
+            model_json = f.read()
+        
+        # model = model_from_json(model_json)
+        model = FFNetwork([784, 50, 50])
+        model.build(input_shape=(None, 784))
+        model.load_weights(os.path.join(extract_path, "model.weights.h5"))
+
+        
+        model.compile(
+            optimizer=keras.optimizers.Adam(learning_rate=0.03),
+            loss="mse",
+            jit_compile=False,
+            metrics=[],
+        )
+        # -----------------------
         # Helper functions
+        # -----------------------
         def data_prep(x_train, x_test, y_train, y_test):
             x_train = x_train.astype(float) / 255
             x_test = x_test.astype(float) / 255
@@ -170,169 +235,82 @@ implementation:
             train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train)).batch(len(x_train))
             test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test)).batch(len(x_test))
             return train_dataset, test_dataset
-        
+
         def get_accuracy(model, x_test, y_test):
             preds = model.predict(x_test)
             preds = preds.reshape((preds.shape[0], preds.shape[1]))
             results = accuracy_score(preds, y_test)
             print(f"Test Accuracy score : {results * 100}%")
             return results
-        
+
         def pierce_model(model, new_x, new_y, pierce_params):
-            """Fixed pierce_model function with proper optimizer handling"""
-            
-            # Update pierce parameters with fresh optimizers
             model.update_pierce_params(pierce_params)
             epochs = pierce_params.get("epochs", 5)
             required_accuracy = pierce_params.get("accuracy", 0.9)
-        
+
             x_train, x_test, y_train, y_test = train_test_split(
                 new_x, new_y, test_size=0.3, random_state=42, stratify=new_y
             )
             train_dataset, _ = data_prep(x_train, x_test, y_train, y_test)
-        
-            # Recompile model with fresh optimizer to avoid variable conflicts
-            fresh_optimizer = keras.optimizers.Adam(learning_rate=0.03)
-            model.compile(
-                optimizer=fresh_optimizer,
-                loss="mse",
-                jit_compile=False,
-                metrics=[],
-            )
-        
+
             model.fit(train_dataset, epochs=epochs)
             prev_accuracy = 0
             accuracy = get_accuracy(model, x_test, y_test)
-            print(f"the expected accuracy {required_accuracy}")
+            print(f"the expected accuracy{required_accuracy}")
             print(f"The obtained accuracy {accuracy}")
-            
-            iteration_count = 0
-            max_iterations = 10  # Prevent infinite loops
-            
-            while accuracy < required_accuracy and accuracy > prev_accuracy and iteration_count < max_iterations:
+            while accuracy < required_accuracy and accuracy > prev_accuracy:
                 prev_accuracy = accuracy
-                iteration_count += 1
-                
-                # Create new optimizer parameters
-                params = pierce_params.get("optimiser_params", {}).copy()
+                params = pierce_params["optimiser_params"]
                 params["learning_rate"] = np.random.uniform(0.001, 0.01)
                 params["beta_1"] = np.random.uniform(0.9, 0.99)
                 params["beta_2"] = np.random.uniform(0.99, 0.9999)
-                
-                # Create fresh optimizer instance
                 pierce_params["optimiser"] = pierce_params["optimiser_class"](**params)
                 model.update_pierce_params(pierce_params)
                 
-                # Recompile model with new optimizer
-                model.compile(
-                    optimizer=pierce_params["optimiser"],
-                    loss="mse",
-                    jit_compile=False,
-                    metrics=[],
-                )
-                
                 model.fit(train_dataset, epochs=epochs)
                 accuracy = get_accuracy(model, x_test, y_test)
-                print(f"Iteration {iteration_count}: expected accuracy {required_accuracy}")
-                print(f"Iteration {iteration_count}: obtained accuracy {accuracy}")
+                print(f"the expected accuracy{required_accuracy}")
+                print(f"The obtained accuracy {accuracy}")
+
+        # -----------------------
+        # Main script
+        # -----------------------
         
-        def load_model_safely(model_path):
-            """Safely load the FFNetwork model"""
-            try:
-                # Extract the model
-                extract_path = "/tmp/trained_model_extracted"
-                with zipfile.ZipFile(model_path, 'r') as zip_ref:
-                    zip_ref.extractall(extract_path)
-                
-                # Create fresh model instance
-                model = FFNetwork([784, 50, 50])
-                model.build(input_shape=(None, 784))
-                
-                # Load weights only (not optimizer state)
-                weights_path = os.path.join(extract_path, "model.weights.h5")
-                if os.path.exists(weights_path):
-                    model.load_weights(weights_path)
-                    print("Model weights loaded successfully")
-                else:
-                    print("Warning: No weights file found, using random initialization")
-                
-                # Compile with fresh optimizer
-                model.compile(
-                    optimizer=keras.optimizers.Adam(learning_rate=0.03),
-                    loss="mse",
-                    jit_compile=False,
-                    metrics=[],
-                )
-                
-                return model
-                
-            except Exception as e:
-                print(f"Error loading model: {e}")
-                print("Creating fresh model with random weights")
-                
-                # Fallback: create fresh model
-                model = FFNetwork([784, 50, 50])
-                model.build(input_shape=(None, 784))
-                model.compile(
-                    optimizer=keras.optimizers.Adam(learning_rate=0.03),
-                    loss="mse",
-                    jit_compile=False,
-                    metrics=[],
-                )
-                return model
-        
-        # Main execution
-        if __name__ == "__main__":
-            parser = argparse.ArgumentParser()
-            parser.add_argument('--trained_model', type=str, required=True)
-            parser.add_argument('--x_pierce_splits', type=str, required=True)
-            parser.add_argument('--y_pierce_splits', type=str, required=True)
-            parser.add_argument('--pierced_model', type=str, required=True)
-            args = parser.parse_args()
-        
-            print(f"the trained model path is {args.trained_model}")
-            
-            # Load model safely
-            model = load_model_safely(args.trained_model)
-        
-            # Load data
-            x_splits = np.load(args.x_pierce_splits, allow_pickle=True)
-            y_splits = np.load(args.y_pierce_splits, allow_pickle=True)
-        
-            # Define piercing parameters
-            pierce_params = {
-                "epochs": 5,
-                "accuracy": 0.5,
-                "optimiser_class": Adam,
-                "optimiser_params": {
-                    "learning_rate": 0.01,
-                    "beta_1": 0.9,
-                    "beta_2": 0.99
-                }
+        # Load model
+        # with open(args.trained_model, "rb") as f:
+        #     model = pickle.load(f)
+        # args.trained_model += ".keras"
+        # model = load_model(args.trained_model)
+
+        # Load data
+        x_splits = np.load(args.x_pierce_splits, allow_pickle=True)
+        y_splits = np.load(args.y_pierce_splits, allow_pickle=True)
+
+        # Define piercing parameters
+        pierce_params = {
+            "epochs": 5,
+            "accuracy": 0.5,
+            "optimiser_class": Adam,
+            "optimiser_params": {
+                "learning_rate": 0.01,
+                "beta_1": 0.9,
+                "beta_2": 0.99
             }
-        
-            # Perform piercing on each split
-            new_data_id = 1
-            for new_x, new_y in zip(x_splits, y_splits):
-                print(f"the new_data {new_data_id} arrived for piercing")
-                pierce_model(model, new_x, new_y, pierce_params)
-                new_data_id += 1
-        
-            # Save final pierced model
-            try:
-                os.makedirs(os.path.dirname(args.pierced_model), exist_ok=True)
-                model.save(args.pierced_model + ".keras")
-                os.rename(args.pierced_model + ".keras", args.pierced_model)
-                print(f"Model saved successfully to {args.pierced_model}")
-            except Exception as e:
-                print(f"Error saving model: {e}")
-                # Try alternative saving method
-                try:
-                    with open(args.pierced_model, "wb") as f:
-                        pickle.dump(model, f)
-                    print(f"Model saved as pickle to {args.pierced_model}")
-                except Exception as e2:
-                    print(f"Failed to save model: {e2}")
+        }
+
+        # Perform piercing on each split
+        new_data_id = 1
+        for new_x, new_y in zip(x_splits, y_splits):
+            print(f"the new_data {new_data_id} arrived for piercing")
+            pierce_model(model, new_x, new_y, pierce_params)
+
+        # Save final pierced model
+        # os.makedirs(os.path.dirname(args.pierced_model), exist_ok=True)
+        # with open(args.pierced_model, "wb") as f:
+        #     pickle.dump(model, f)
+        os.makedirs(os.path.dirname(args.pierced_model), exist_ok=True)
+        model.save(args.pierced_model + ".keras")   # args.pierced_model should be a directory path
+        os.rename(args.pierced_model + ".keras", args.pierced_model)
     args:
       - --trained_model
       - {inputPath: trained_model}
