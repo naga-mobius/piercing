@@ -133,9 +133,13 @@ implementation:
             def update_pierce_params(self, pierce_params):
                 self.optimiser = pierce_params.get("optimiser", keras.optimizers.Adam(learning_rate=0.03))
                 self.threshold = pierce_params.get("threshold", 1.5)
+                # for layer in self.layer_list:
+                #     if hasattr(layer, "optimizer"):
+                #         layer.optimizer = self.optimiser
                 for layer in self.layer_list:
-                    if hasattr(layer, "optimizer"):
-                        layer.optimizer = self.optimiser
+                    if isinstance(layer, FFDense):
+                        layer.optimizer = pierce_params["optimiser_class"](**pierce_params["optimiser_params"])
+
 
             @tf.function(jit_compile=False)
             def train_step(self, data):
